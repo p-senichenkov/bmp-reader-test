@@ -105,5 +105,10 @@ public:
     std::vector<std::vector<bool>> const& GetPixelData() const {
         return pixel_data_;
     }
+
+    // For testing purposes only
+    ImportantFields const& GetImportantFields() const {
+        return imp_fields;
+    }
 };
 }  // namespace bmp

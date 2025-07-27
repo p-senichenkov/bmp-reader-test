@@ -1,5 +1,4 @@
-file(GLOB_RECURSE sources CONFIGURE_DEPENDS "*.cpp")
+file(GLOB_RECURSE lib_sources CONFIGURE_DEPENDS "*.cpp")
 
-add_executable(${CMAKE_PROJECT_NAME} ${sources})
-
-target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ".")
+add_library(${CMAKE_PROJECT_NAME} ${lib_sources})
+target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC ".")
