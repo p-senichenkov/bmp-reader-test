@@ -1,0 +1,13 @@
+on:
+  push
+
+jobs:
+  lib_tests:
+    name: Library tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: cmake -D CMAKE_BUILD_TYPE=Debug -S . -B build && cmake --build build
+      - name: Run tests
+        run: build/target/BMPReader_test
