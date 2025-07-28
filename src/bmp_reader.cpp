@@ -1,5 +1,6 @@
 #include "bmp_reader.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <ios>
 #include <iostream>

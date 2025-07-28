@@ -59,6 +59,10 @@ private:
     [[nodiscard]] util::RGBColor Read24bitPixel();
     [[nodiscard]] util::RGBColor Read32bitPixel();
 
+	void DrawLine(DWord x1, DWord y1, DWord x2, DWord y2) {
+
+	}
+
 public:
     /// @param is -- @c std::istream to read from
     /// @param file_size -- input file size, used only to check header. Set to 0 to disable checks
