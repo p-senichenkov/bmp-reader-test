@@ -1,43 +1,95 @@
-#include <cmath>
-#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <sstream>
+#include <string>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <vector>
 
 #include "bmp_reader.h"
+#include "gtest/gtest.h"
+#include "util/field_types.h"
 #include "util/ms_constants.h"
 
+using namespace bmp;
+
 namespace test {
-TEST(ReaderTests, ReadHeaders) {
-    constexpr static char filename[] = "test_input_data/test1.bmp";
+constexpr static char kTest1Filename[] = "test_input_data/test1.bmp";
+constexpr static char kTest2Filename[] = "test_input_data/test2.bmp";
 
-    std::ifstream ifs{filename};
-    auto size = std::filesystem::file_size(filename);
-    bmp::BMPReader reader{ifs, static_cast<bmp::DWord>(size)};
+constexpr static char kTestData[] =
+        ".###..###.\n"
+        "..#...#...\n"
+        "..#...###.\n"
+        "..#...#...\n"
+        "..#...###.\n"
+        ".###..###.\n"
+        ".#.....#..\n"
+        ".###...#..\n"
+        "...#...#..\n"
+        ".###...#..\n";
+
+struct ReadHeaderParams {
+    std::string bmp_filename;
+    BMPReader::ImportantFields expected_fields;
+};
+
+class ReadHeaderTest : public testing::TestWithParam<ReadHeaderParams> {};
+
+TEST_P(ReadHeaderTest, ReadHeaders) {
+    auto const& param = GetParam();
+
+    std::ifstream ifs{param.bmp_filename};
+    auto size = std::filesystem::file_size(param.bmp_filename);
+    BMPReader reader{ifs, static_cast<bmp::DWord>(size)};
     reader.ReadHeaders();
-    auto const& fields = reader.GetImportantFields();
+    auto const& actual_fields = reader.GetImportantFields();
 
-    EXPECT_EQ(fields.offset, 54);
-    EXPECT_EQ(fields.width, 10);
-    EXPECT_EQ(fields.height, 10);
-    EXPECT_EQ(fields.bottom_up, true);
-    EXPECT_EQ(fields.bit_count, 24);
-    EXPECT_EQ(fields.compression, bmp::util::Compression::RGB);
-    EXPECT_EQ(fields.size_image, 320);
-    EXPECT_EQ(fields.palette_used, false);
-    EXPECT_EQ(fields.palette_important, 0);
-    EXPECT_EQ(fields.padding_bytes, 2);
+    EXPECT_EQ(actual_fields, param.expected_fields);
 }
 
-TEST(ReaderTests, Read24bitData) {
-    constexpr static char bmp_filename[] = "test_input_data/test1.bmp";
-    constexpr static char txt_filename[] = "test_input_data/test1.txt";
+INSTANTIATE_TEST_SUITE_P(
+        ReaderTests, ReadHeaderTest,
+        // 24-bit file
+        testing::Values(ReadHeaderParams{kTest1Filename,
+                                         {
 
-    std::ifstream ifs{bmp_filename};
+                                                 .offset = 54,
+                                                 .width = 10,
+                                                 .height = 10,
+                                                 .bottom_up = true,
+                                                 .bit_count = 24,
+                                                 .compression = util::Compression::RGB,
+                                                 .size_image = 320,
+                                                 .palette_used = false,
+                                                 .palette_important = 0,
+                                                 .padding_bytes = 2,
+                                         }},
+                        // 32-bit file (no masks)
+                        ReadHeaderParams{kTest2Filename,
+                                         {
+                                                 .offset = 70,
+                                                 .width = 10,
+                                                 .height = 10,
+                                                 .bottom_up = true,
+                                                 .bit_count = 32,
+                                                 .compression = util::Compression::BITFIELDS,
+                                                 .size_image = 400,
+                                                 .palette_used = false,
+                                                 .palette_important = 0,
+                                                 .padding_bytes = 0,
+                                         }}));
+
+struct ReadDataParams {
+    std::string bmp_filename;
+    std::string expected_data;
+};
+
+class ReadDataTest : public testing::TestWithParam<ReadDataParams> {};
+
+TEST_P(ReadDataTest, ReadData) {
+    auto const& param = GetParam();
+    std::ifstream ifs{param.bmp_filename};
     bmp::BMPReader reader{ifs};
     reader.ReadHeaders();
     reader.ReadData();
@@ -54,18 +106,10 @@ TEST(ReaderTests, Read24bitData) {
         oss << '\n';
     }
 
-    std::string expected =
-            ".###..###.\n"
-            "..#...#...\n"
-            "..#...###.\n"
-            "..#...#...\n"
-            "..#...###.\n"
-            ".###..###.\n"
-            ".#.....#..\n"
-            ".###...#..\n"
-            "...#...#..\n"
-            ".###...#..\n";
-
-    EXPECT_EQ(oss.str(), expected);
+    EXPECT_EQ(oss.str(), param.expected_data);
 }
+
+INSTANTIATE_TEST_SUITE_P(ReaderTests, ReadDataTest,
+                         testing::Values(ReadDataParams{kTest1Filename, kTestData},
+                                         ReadDataParams{kTest2Filename, kTestData}));
 }  // namespace test

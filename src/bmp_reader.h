@@ -1,9 +1,9 @@
 #pragma once
 
-#include <algorithm>
 #include <bit>
+#include <iomanip>
+#include <ios>
 #include <istream>
-#include <iterator>
 #include <stdexcept>
 #include <vector>
 
@@ -14,9 +14,10 @@
 namespace bmp {
 /// @brief Reads BMP file into 2D bitset
 class BMPReader {
-private:
+public:
     /// @brief Holds header fields that are used by Reader
     /// "New version" fields are pre-initialized (except for size_image, that must be calculated)
+    /// @note This class is made public for testing purposes
     struct ImportantFields {
         // Pixel data offset (bytes)
         DWord offset;
@@ -37,6 +38,12 @@ private:
         Word padding_bytes = 0;
     };
 
+private:
+    // Standard masks
+    constexpr static DWord kStandRMask = 0x00FF0000;
+    constexpr static DWord kStandGMask = 0x0000FF00;
+    constexpr static DWord kStandBMask = 0x000000FF;
+
     std::istream* is_;
     ImportantFields imp_fields;
     std::vector<std::vector<bool>> pixel_data_;
@@ -49,17 +56,13 @@ private:
     void ReadCoreInfoHeader();
     void ReadNewInfoHeader();
 
-    [[nodiscard]] std::vector<std::vector<util::RGBColor>> Read24bitData();
+    [[nodiscard]] util::RGBColor Read24bitPixel();
+    [[nodiscard]] util::RGBColor Read32bitPixel();
 
 public:
     /// @param is -- @c std::istream to read from
     /// @param file_size -- input file size, used only to check header. Set to 0 to disable checks
-    BMPReader(std::istream& is, DWord file_size = 0) : is_(&is), file_size_(file_size) {
-        if (std::endian::native != std::endian::little) {
-            // TODO: Big-endian
-            throw std::logic_error("Only little-endian platforms are supported now");
-        }
-    }
+    BMPReader(std::istream& is, DWord file_size = 0) : is_(&is), file_size_(file_size) {}
 
     void ReadHeaders() {
         ReadFileHeader();
@@ -77,30 +80,7 @@ public:
         }
     }
 
-    void ReadData() {
-        is_->seekg(imp_fields.offset);
-
-        std::vector<std::vector<util::RGBColor>> bit_data;
-        if (imp_fields.bit_count == 24) {
-            bit_data = Read24bitData();
-        } else {
-            // TODO: 32-bit data
-            throw std::logic_error("32-bit BMP isn't supported yet");
-        }
-
-        if (imp_fields.bottom_up) {
-            std::reverse(bit_data.begin(), bit_data.end());
-        }
-
-        for (auto const& scan : bit_data) {
-            std::vector<bool> black_and_white_scan;
-            std::transform(scan.begin(), scan.end(), std::back_inserter(black_and_white_scan),
-                           [](util::RGBColor color) {
-                               return (color.red + color.green + color.blue) <= 122 * 3;
-                           });
-            pixel_data_.push_back(std::move(black_and_white_scan));
-        }
-    }
+    void ReadData();
 
     std::vector<std::vector<bool>> const& GetPixelData() const {
         return pixel_data_;
@@ -111,4 +91,29 @@ public:
         return imp_fields;
     }
 };
+
+// This operator is useful in tests
+inline std::ostream& operator<<(std::ostream& os, BMPReader::ImportantFields const& imp_f) {
+    os << "{\n";
+    os << "\toffset: " << imp_f.offset << '\n';
+    os << "\twidth: " << imp_f.width << '\n';
+    os << "\theight: " << imp_f.height << '\n';
+    os << "\tbottom-up: " << std::boolalpha << imp_f.bottom_up << '\n';
+    os << "\tbit count: " << imp_f.bit_count << '\n';
+    os << "\tcompression method: " << static_cast<Word>(imp_f.compression) << '\n';
+    os << "\timage size: " << imp_f.size_image << '\n';
+    os << "\tpalette used: " << std::boolalpha << imp_f.palette_used << '\n';
+    os << "\tpalette important fields: " << imp_f.palette_important << '\n';
+    os << "\tpadding bytes: " << imp_f.padding_bytes << '\n';
+    os << "}\n";
+    return os;
+}
+
+inline bool operator==(BMPReader::ImportantFields const& a, BMPReader::ImportantFields const& b) {
+    return a.offset == b.offset && a.width == b.width && a.height == b.height &&
+           a.bottom_up == b.bottom_up && a.bit_count == b.bit_count &&
+           a.compression == b.compression && a.size_image == b.size_image &&
+           a.palette_used == b.palette_used && a.palette_important == b.palette_important &&
+           a.padding_bytes == b.padding_bytes;
+}
 }  // namespace bmp

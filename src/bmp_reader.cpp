@@ -3,8 +3,9 @@
 #include <cstdlib>
 #include <ios>
 #include <iostream>
-#include <limits>
+#include <istream>
 #include <string>
+#include <sys/stat.h>
 #include <vector>
 
 #include "util/bitmap_file_header.h"
@@ -39,7 +40,8 @@ void BMPReader::ReadInfoHeader() {
 
     if (h_size == 12) {
         ReadCoreInfoHeader();
-    } else if (h_size == 40 || h_size == 108 || h_size == 124) {
+        // 54 and 56-bit headers are not documented by Microsoft, but are used sometimes
+    } else if (h_size == 40 || h_size == 54 || h_size == 56 || h_size == 108 || h_size == 124) {
         ReadNewInfoHeader();
     } else {
         throw InvalidBMPError("invalid info header size: " + std::to_string(h_size));
@@ -70,15 +72,35 @@ void BMPReader::ReadNewInfoHeader() {
         imp_fields.palette_used = true;
         imp_fields.palette_important = info_header.clr_important;
     }
+
+    // Check masks
+    if (imp_fields.bit_count == 32 && imp_fields.compression == Compression::BITFIELDS ||
+        imp_fields.compression == Compression::ALPHABITFIELDS) {
+        DWord r_mask, g_mask, b_mask;
+        if (!is_->read(reinterpret_cast<char*>(&r_mask), sizeof(r_mask)) ||
+            !is_->read(reinterpret_cast<char*>(&g_mask), sizeof(g_mask)) ||
+            !is_->read(reinterpret_cast<char*>(&b_mask), sizeof(b_mask))) {
+            throw IOError("cannot read bit mask");
+        }
+        if (r_mask != kStandRMask || g_mask != kStandGMask || b_mask != kStandBMask) {
+            throw InvalidBMPError("non-standard bit masks are not supported yet");
+        }
+    }
 }
 
-std::vector<std::vector<RGBColor>> BMPReader::Read24bitData() {
+void BMPReader::ReadData() {
+    is_->seekg(imp_fields.offset);
+
     std::vector<std::vector<RGBColor>> bit_data;
     for (std::size_t scan_num = 0; scan_num < imp_fields.height; ++scan_num) {
         std::vector<RGBColor> scan;
         for (std::size_t cell_num = 0; cell_num < imp_fields.width; ++cell_num) {
             RGBColor color;
-            is_->read(reinterpret_cast<char*>(&color), sizeof(color));
+            if (imp_fields.bit_count == 24) {
+                color = Read24bitPixel();
+            } else {
+                color = Read32bitPixel();
+            }
             scan.push_back(color);
         }
         if (imp_fields.padding_bytes > 0) {
@@ -86,6 +108,38 @@ std::vector<std::vector<RGBColor>> BMPReader::Read24bitData() {
         }
         bit_data.push_back(scan);
     }
-    return bit_data;
+
+    if (imp_fields.bottom_up) {
+        std::reverse(bit_data.begin(), bit_data.end());
+    }
+
+    for (auto const& scan : bit_data) {
+        std::vector<bool> black_and_white_scan;
+        std::transform(scan.begin(), scan.end(), std::back_inserter(black_and_white_scan),
+                       [](util::RGBColor color) {
+                           return (color.red + color.green + color.blue) <= 122 * 3;
+                       });
+        pixel_data_.push_back(std::move(black_and_white_scan));
+    }
+}
+
+RGBColor BMPReader::Read24bitPixel() {
+    RGBColor color;
+    if (!is_->read(reinterpret_cast<char*>(&color), sizeof(color))) {
+        throw IOError("cannot read pixel data");
+    }
+    return color;
+}
+
+RGBColor BMPReader::Read32bitPixel() {
+    RGBColor color;
+    DWord raw_color;
+    if (!is_->read(reinterpret_cast<char*>(&raw_color), sizeof(raw_color))) {
+        throw IOError("cannot read pixel data");
+    }
+    color.red = raw_color & kStandRMask >> 16;
+    color.green = raw_color & kStandGMask >> 8;
+    color.blue = raw_color & kStandBMask;
+    return color;
 }
 }  // namespace bmp
