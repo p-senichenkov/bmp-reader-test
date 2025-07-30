@@ -1,6 +1,4 @@
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <vector>
 
@@ -61,9 +59,7 @@ int main(int argc, char** argv) {
         std::cin >> new_filename;
     }
 
-    std::ifstream ifs{filename};
-    auto size = std::filesystem::file_size(filename);
-    bmp::BMPReader reader{ifs, static_cast<bmp::DWord>(size)};
+    bmp::BMPReader reader{filename};
     reader.ReadHeaders();
     reader.ReadData();
 

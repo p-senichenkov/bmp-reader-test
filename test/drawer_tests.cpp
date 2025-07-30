@@ -1,4 +1,3 @@
-#include <fstream>
 #include <gtest/gtest.h>
 #include <sstream>
 
@@ -31,8 +30,7 @@ class CrossTest : public testing::TestWithParam<CrossParams> {};
 
 TEST_P(CrossTest, DrawCross) {
     auto const& param = GetParam();
-    std::ifstream ifs{param.bmp_filename};
-    bmp::BMPReader reader{ifs};
+    bmp::BMPReader reader{param.bmp_filename};
     reader.ReadHeaders();
     reader.ReadData();
     reader.DrawCross(param.x1, param.y1, param.x2, param.y2);

@@ -1,12 +1,12 @@
 #pragma once
 
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <istream>
 #include <sstream>
 #include <unistd.h>
-#include <utility>
 #include <vector>
 
 #include "util/color.h"
@@ -46,7 +46,7 @@ private:
     constexpr static DWord kStandGMask = 0x0000FF00;
     constexpr static DWord kStandBMask = 0x000000FF;
 
-    std::istream* is_;
+    std::ifstream ifs_;
     ImportantFields imp_fields;
     std::vector<std::vector<bool>> pixel_data_;
     // Holds the whole BMP contents and is being edited on Draw*
@@ -69,12 +69,12 @@ private:
     void DrawLine(DWord x1, DWord y1, DWord x2, DWord y2);
 
 public:
-    /// @param is -- @c std::istream to read from
-    /// @param file_size -- input file size, used only to check header. Set to 0 to disable checks
-    BMPReader(std::istream& is, DWord file_size = 0) : is_(&is), file_size_(file_size) {
+    /// @param BMP filename
+    BMPReader(std::string const& filename)
+        : ifs_(filename), file_size_(std::filesystem::file_size(filename)) {
         // Copy contents of BMP and reset position
-        *is_ >> bmp_contents_.rdbuf();
-        is_->seekg(0);
+        ifs_ >> bmp_contents_.rdbuf();
+        ifs_.seekg(0);
     }
 
     void ReadHeaders() {

@@ -23,7 +23,7 @@ using namespace util;
 
 void BMPReader::ReadFileHeader() {
     util::BitmapFileHeader file_header;
-    *is_ >> file_header;
+    ifs_ >> file_header;
 
     if (file_size_ > 0) {
         InvalidBMPError::Assert(file_header.file_size == file_size_,
@@ -35,7 +35,7 @@ void BMPReader::ReadFileHeader() {
 
 void BMPReader::ReadInfoHeader() {
     DWord h_size;
-    if (!is_->read(reinterpret_cast<char*>(&h_size), sizeof(h_size))) {
+    if (!ifs_.read(reinterpret_cast<char*>(&h_size), sizeof(h_size))) {
         throw IOError("cannot read info header size");
     }
 
@@ -51,7 +51,7 @@ void BMPReader::ReadInfoHeader() {
 
 void BMPReader::ReadCoreInfoHeader() {
     util::BitmapCoreHeader core_header;
-    *is_ >> core_header;
+    ifs_ >> core_header;
 
     imp_fields.width = core_header.width;
     imp_fields.height = core_header.height;
@@ -60,7 +60,7 @@ void BMPReader::ReadCoreInfoHeader() {
 
 void BMPReader::ReadNewInfoHeader() {
     util::BitmapInfoHeader info_header;
-    *is_ >> info_header;
+    ifs_ >> info_header;
 
     imp_fields.width = info_header.width;
     imp_fields.height = std::abs(info_header.height);
@@ -78,9 +78,9 @@ void BMPReader::ReadNewInfoHeader() {
     if (imp_fields.byte_count == 4 && imp_fields.compression == Compression::BITFIELDS ||
         imp_fields.compression == Compression::ALPHABITFIELDS) {
         DWord r_mask, g_mask, b_mask;
-        if (!is_->read(reinterpret_cast<char*>(&r_mask), sizeof(r_mask)) ||
-            !is_->read(reinterpret_cast<char*>(&g_mask), sizeof(g_mask)) ||
-            !is_->read(reinterpret_cast<char*>(&b_mask), sizeof(b_mask))) {
+        if (!ifs_.read(reinterpret_cast<char*>(&r_mask), sizeof(r_mask)) ||
+            !ifs_.read(reinterpret_cast<char*>(&g_mask), sizeof(g_mask)) ||
+            !ifs_.read(reinterpret_cast<char*>(&b_mask), sizeof(b_mask))) {
             throw IOError("cannot read bit mask");
         }
         if (r_mask != kStandRMask || g_mask != kStandGMask || b_mask != kStandBMask) {
@@ -90,7 +90,7 @@ void BMPReader::ReadNewInfoHeader() {
 }
 
 void BMPReader::ReadData() {
-    is_->seekg(imp_fields.offset);
+    ifs_.seekg(imp_fields.offset);
 
     std::vector<std::vector<RGBColor>> bit_data;
     for (std::size_t scan_num = 0; scan_num < imp_fields.height; ++scan_num) {
@@ -105,7 +105,7 @@ void BMPReader::ReadData() {
             scan.push_back(color);
         }
         if (imp_fields.padding_bytes > 0) {
-            is_->ignore(imp_fields.padding_bytes);
+            ifs_.ignore(imp_fields.padding_bytes);
         }
         bit_data.push_back(scan);
     }
@@ -126,7 +126,7 @@ void BMPReader::ReadData() {
 
 RGBColor BMPReader::Read24bitPixel() {
     RGBColor color;
-    if (!is_->read(reinterpret_cast<char*>(&color), sizeof(color))) {
+    if (!ifs_.read(reinterpret_cast<char*>(&color), sizeof(color))) {
         throw IOError("cannot read pixel data");
     }
     return color;
@@ -135,7 +135,7 @@ RGBColor BMPReader::Read24bitPixel() {
 RGBColor BMPReader::Read32bitPixel() {
     RGBColor color;
     DWord raw_color;
-    if (!is_->read(reinterpret_cast<char*>(&raw_color), sizeof(raw_color))) {
+    if (!ifs_.read(reinterpret_cast<char*>(&raw_color), sizeof(raw_color))) {
         throw IOError("cannot read pixel data");
     }
     color.red = raw_color & kStandRMask >> 16;

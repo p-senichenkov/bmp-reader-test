@@ -1,5 +1,3 @@
-#include <filesystem>
-#include <fstream>
 #include <gtest/gtest.h>
 #include <sstream>
 #include <string>
@@ -7,7 +5,6 @@
 #include <unistd.h>
 
 #include "bmp_reader.h"
-#include "util/field_types.h"
 #include "util/ms_constants.h"
 
 using namespace bmp;
@@ -37,10 +34,7 @@ class ReadHeaderTest : public testing::TestWithParam<ReadHeaderParams> {};
 
 TEST_P(ReadHeaderTest, ReadHeaders) {
     auto const& param = GetParam();
-
-    std::ifstream ifs{param.bmp_filename};
-    auto size = std::filesystem::file_size(param.bmp_filename);
-    BMPReader reader{ifs, static_cast<bmp::DWord>(size)};
+    BMPReader reader{param.bmp_filename};
     reader.ReadHeaders();
     auto const& actual_fields = reader.GetImportantFields();
 
@@ -88,8 +82,7 @@ class ReadDataTest : public testing::TestWithParam<ReadDataParams> {};
 
 TEST_P(ReadDataTest, ReadData) {
     auto const& param = GetParam();
-    std::ifstream ifs{param.bmp_filename};
-    bmp::BMPReader reader{ifs};
+    bmp::BMPReader reader{param.bmp_filename};
     reader.ReadHeaders();
     reader.ReadData();
 
