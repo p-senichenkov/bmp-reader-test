@@ -55,7 +55,7 @@ void BMPReader::ReadCoreInfoHeader() {
 
     imp_fields.width = core_header.width;
     imp_fields.height = core_header.height;
-    imp_fields.bit_count = core_header.bit_count;
+    imp_fields.byte_count = core_header.bit_count / 8;
 }
 
 void BMPReader::ReadNewInfoHeader() {
@@ -65,7 +65,7 @@ void BMPReader::ReadNewInfoHeader() {
     imp_fields.width = info_header.width;
     imp_fields.height = std::abs(info_header.height);
     imp_fields.bottom_up = info_header.height > 0;
-    imp_fields.bit_count = info_header.bit_count;
+    imp_fields.byte_count = info_header.bit_count / 8;
     imp_fields.compression = static_cast<Compression>(info_header.compression);
     // If size_image is 0, it will be calculated later
     imp_fields.size_image = info_header.size_image;
@@ -75,7 +75,7 @@ void BMPReader::ReadNewInfoHeader() {
     }
 
     // Check masks
-    if (imp_fields.bit_count == 32 && imp_fields.compression == Compression::BITFIELDS ||
+    if (imp_fields.byte_count == 4 && imp_fields.compression == Compression::BITFIELDS ||
         imp_fields.compression == Compression::ALPHABITFIELDS) {
         DWord r_mask, g_mask, b_mask;
         if (!is_->read(reinterpret_cast<char*>(&r_mask), sizeof(r_mask)) ||
@@ -97,7 +97,7 @@ void BMPReader::ReadData() {
         std::vector<RGBColor> scan;
         for (std::size_t cell_num = 0; cell_num < imp_fields.width; ++cell_num) {
             RGBColor color;
-            if (imp_fields.bit_count == 24) {
+            if (imp_fields.byte_count == 3) {
                 color = Read24bitPixel();
             } else {
                 color = Read32bitPixel();
@@ -142,5 +142,67 @@ RGBColor BMPReader::Read32bitPixel() {
     color.green = raw_color & kStandGMask >> 8;
     color.blue = raw_color & kStandBMask;
     return color;
+}
+
+void BMPReader::DrawPixel(DWord x, DWord y) {
+    // Draw on pixel data (note: it's top-down)
+    auto rev_y = imp_fields.height - y - 1;
+    pixel_data_[rev_y][x] = true;
+
+    // Draw on BMP contents
+    auto const prev_scans = y == 0 ? 0 : y - 1;
+    auto const full_scan = imp_fields.width * imp_fields.byte_count + imp_fields.padding_bytes;
+    auto const pos = imp_fields.offset + prev_scans * full_scan + x * imp_fields.byte_count;
+    bmp_contents_.seekp(pos);
+
+    constexpr static util::RGBColor Black24bitPx{0, 0, 0};
+    constexpr static DWord Black32bitPx = 0;
+    if (imp_fields.byte_count == 3) {
+        bmp_contents_.write(reinterpret_cast<char const*>(&Black24bitPx), sizeof(Black24bitPx));
+    } else {
+        bmp_contents_.write(reinterpret_cast<char const*>(&Black32bitPx), sizeof(Black32bitPx));
+    }
+}
+
+void BMPReader::DrawLine(DWord x1, DWord y1, DWord x2, DWord y2) {
+    using Point = std::pair<DWord, DWord>;
+    std::vector<Point> line;
+
+    DWord x_diff = std::abs(static_cast<long>(x2) - x1);
+    DWord y_diff = std::abs(static_cast<long>(y2) - y1);
+    if (x_diff >= y_diff) {
+        // k <= 1
+        if (x1 > x2) {
+            std::swap(x1, x2);
+            std::swap(y1, y2);
+        }
+        for (auto x = x1; x <= x2; ++x) {
+            auto y_shift = x_diff == 0 ? 0 : (x - x1) * y_diff / x_diff;
+            if (y1 > y2) {
+                y_shift *= -1;
+            }
+            auto y = y1 + y_shift;
+            line.emplace_back(x, y);
+        }
+    } else {
+        std::cout << "k > 1\n";
+        if (y1 > y2) {
+            std::swap(x1, x2);
+            std::swap(y1, y2);
+        }
+        for (auto y = y1; y <= y2; ++y) {
+            auto x_shift = y_diff == 0 ? 0 : (y - y1) * x_diff / y_diff;
+            if (x1 > x2) {
+                x_shift *= -1;
+            }
+            auto x = x1 + x_shift;
+            line.emplace_back(x, y);
+        }
+    }
+
+    // Actually draw
+    for (auto const p : line) {
+        DrawPixel(p.first, p.second);
+    }
 }
 }  // namespace bmp

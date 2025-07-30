@@ -1,10 +1,12 @@
 #pragma once
 
-#include <bit>
-#include <iomanip>
+#include <fstream>
 #include <ios>
+#include <iostream>
 #include <istream>
-#include <stdexcept>
+#include <sstream>
+#include <unistd.h>
+#include <utility>
 #include <vector>
 
 #include "util/color.h"
@@ -26,8 +28,8 @@ public:
         DWord height;
         // Scans order (true is bottom-up, false is top-down)
         bool bottom_up = true;
-        // Bits per pixel
-        Word bit_count;
+        // Bytes per pixel
+        Word byte_count;
         util::Compression compression = util::Compression::RGB;
         // Data size (bytes). CANNOT be zero
         DWord size_image = 0;
@@ -47,6 +49,8 @@ private:
     std::istream* is_;
     ImportantFields imp_fields;
     std::vector<std::vector<bool>> pixel_data_;
+    // Holds the whole BMP contents and is being edited on Draw*
+    std::stringstream bmp_contents_;
 
     DWord file_size_;
 
@@ -59,25 +63,30 @@ private:
     [[nodiscard]] util::RGBColor Read24bitPixel();
     [[nodiscard]] util::RGBColor Read32bitPixel();
 
-	void DrawLine(DWord x1, DWord y1, DWord x2, DWord y2) {
+    /// @note Bottom-up coordinates are used (i. e. bottom-left corner is 0)
+    void DrawPixel(DWord x, DWord y);
 
-	}
+    void DrawLine(DWord x1, DWord y1, DWord x2, DWord y2);
 
 public:
     /// @param is -- @c std::istream to read from
     /// @param file_size -- input file size, used only to check header. Set to 0 to disable checks
-    BMPReader(std::istream& is, DWord file_size = 0) : is_(&is), file_size_(file_size) {}
+    BMPReader(std::istream& is, DWord file_size = 0) : is_(&is), file_size_(file_size) {
+        // Copy contents of BMP and reset position
+        *is_ >> bmp_contents_.rdbuf();
+        is_->seekg(0);
+    }
 
     void ReadHeaders() {
         ReadFileHeader();
         ReadInfoHeader();
 
         if (imp_fields.size_image == 0) {
-            imp_fields.size_image = imp_fields.width * imp_fields.height * imp_fields.bit_count / 8;
+            imp_fields.size_image = imp_fields.width * imp_fields.height * imp_fields.byte_count;
         }
 
-        if (imp_fields.bit_count != 32) {
-            imp_fields.padding_bytes = imp_fields.width * imp_fields.bit_count / 8 % 4;
+        if (imp_fields.byte_count != 4) {
+            imp_fields.padding_bytes = imp_fields.width * imp_fields.byte_count % 4;
             if (imp_fields.padding_bytes > 0) {
                 imp_fields.padding_bytes = 4 - imp_fields.padding_bytes;
             }
@@ -85,6 +94,16 @@ public:
     }
 
     void ReadData();
+
+    void DrawCross(DWord x1, DWord y1, DWord x2, DWord y2) {
+        DrawLine(x1, y1, x2, y2);
+        DrawLine(x1, y2, x2, y1);
+    }
+
+    void SaveBMP(std::string const& filename) {
+        std::ofstream ofs{filename};
+        ofs << bmp_contents_.rdbuf();
+    }
 
     std::vector<std::vector<bool>> const& GetPixelData() const {
         return pixel_data_;
@@ -103,7 +122,7 @@ inline std::ostream& operator<<(std::ostream& os, BMPReader::ImportantFields con
     os << "\twidth: " << imp_f.width << '\n';
     os << "\theight: " << imp_f.height << '\n';
     os << "\tbottom-up: " << std::boolalpha << imp_f.bottom_up << '\n';
-    os << "\tbit count: " << imp_f.bit_count << '\n';
+    os << "\tbyte count: " << imp_f.byte_count << '\n';
     os << "\tcompression method: " << static_cast<Word>(imp_f.compression) << '\n';
     os << "\timage size: " << imp_f.size_image << '\n';
     os << "\tpalette used: " << std::boolalpha << imp_f.palette_used << '\n';
@@ -115,7 +134,7 @@ inline std::ostream& operator<<(std::ostream& os, BMPReader::ImportantFields con
 
 inline bool operator==(BMPReader::ImportantFields const& a, BMPReader::ImportantFields const& b) {
     return a.offset == b.offset && a.width == b.width && a.height == b.height &&
-           a.bottom_up == b.bottom_up && a.bit_count == b.bit_count &&
+           a.bottom_up == b.bottom_up && a.byte_count == b.byte_count &&
            a.compression == b.compression && a.size_image == b.size_image &&
            a.palette_used == b.palette_used && a.palette_important == b.palette_important &&
            a.padding_bytes == b.padding_bytes;
