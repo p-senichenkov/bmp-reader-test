@@ -7,7 +7,6 @@
 #include <unistd.h>
 
 #include "bmp_reader.h"
-#include "gtest/gtest.h"
 #include "util/field_types.h"
 #include "util/ms_constants.h"
 
