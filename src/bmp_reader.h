@@ -46,12 +46,14 @@ private:
     constexpr static DWord kStandGMask = 0x0000FF00;
     constexpr static DWord kStandBMask = 0x000000FF;
 
+	// Input BMP
     std::ifstream ifs_;
     ImportantFields imp_fields;
     std::vector<std::vector<bool>> pixel_data_;
     // Holds the whole BMP contents and is being edited on Draw*
     std::stringstream bmp_contents_;
 
+	// Input file size. Used to check headers
     DWord file_size_;
 
     void ReadFileHeader();
@@ -69,7 +71,7 @@ private:
     void DrawLine(DWord x1, DWord y1, DWord x2, DWord y2);
 
 public:
-    /// @param BMP filename
+    /// @param filename -- BMP filename
     BMPReader(std::string const& filename)
         : ifs_(filename), file_size_(std::filesystem::file_size(filename)) {
         // Copy contents of BMP and reset position
@@ -77,6 +79,7 @@ public:
         ifs_.seekg(0);
     }
 
+	/// @brief Read and check BMP metadata. Must be called before any other operations
     void ReadHeaders() {
         ReadFileHeader();
         ReadInfoHeader();
@@ -93,18 +96,23 @@ public:
         }
     }
 
+	/// @brief Read BMP pixel data
     void ReadData();
 
+	/// @brief Draw "X" on BMP
     void DrawCross(DWord x1, DWord y1, DWord x2, DWord y2) {
         DrawLine(x1, y1, x2, y2);
         DrawLine(x1, y2, x2, y1);
     }
 
+	/// @brief Save edited BMP
     void SaveBMP(std::string const& filename) {
         std::ofstream ofs{filename};
         ofs << bmp_contents_.rdbuf();
     }
 
+	/// @brief Get BMP data as an array of @c bools.
+	/// @c true is black, @c false is white.
     std::vector<std::vector<bool>> const& GetPixelData() const {
         return pixel_data_;
     }

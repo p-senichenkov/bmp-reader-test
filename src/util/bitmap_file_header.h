@@ -10,6 +10,7 @@
 namespace bmp::util {
 #pragma pack(push, 1)
 
+/// @brief First BMP header. Contains file info
 struct BitmapFileHeader {
     // File signature. Must be "BM"
     Word signature;

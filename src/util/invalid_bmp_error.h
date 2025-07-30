@@ -4,6 +4,7 @@
 #include <string>
 
 namespace bmp {
+/// @brief This error is thrown when BMP cannot be read due to invalid data, mainly in headers
 class InvalidBMPError : public std::exception {
 private:
     std::string msg_;

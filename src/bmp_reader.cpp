@@ -185,7 +185,6 @@ void BMPReader::DrawLine(DWord x1, DWord y1, DWord x2, DWord y2) {
             line.emplace_back(x, y);
         }
     } else {
-        std::cout << "k > 1\n";
         if (y1 > y2) {
             std::swap(x1, x2);
             std::swap(y1, y2);

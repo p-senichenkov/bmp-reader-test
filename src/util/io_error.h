@@ -4,6 +4,7 @@
 #include <string>
 
 namespace bmp {
+/// @brief Thrown when BMP cannot be read due to I/O error
 class IOError : public std::exception {
 private:
     std::string msg_;
